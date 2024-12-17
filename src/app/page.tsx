@@ -1,102 +1,113 @@
-'use client'
-import { useState } from 'react'
-import { createHash } from 'crypto'
+'use client';
+import { useState } from 'react';
+import { Gift, Snowflake } from 'lucide-react';
 
 export default function Home() {
-  const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
-  const [cryptoName, setCryptoName] = useState('')
-  const [isSubmitted, setIsSubmitted] = useState(false)
-  
-  const generateCryptoName = (input: string) => {
-    // Create a deterministic but secure hash from the input
-    const hash = createHash('sha256')
-      .update(input)
-      .digest('hex')
-      .substring(0, 8)
-    
-    // List of adjectives and nouns for name generation
-    const adjectives = ['Mystic', 'Cosmic', 'Quantum', 'Stellar', 'Crypto', 'Digital', 'Neural', 'Cyber']
-    const nouns = ['Phoenix', 'Dragon', 'Nexus', 'Matrix', 'Vector', 'Pulse', 'Nova', 'Spark']
-    
-    // Use hash to deterministically select words
-    const adjIndex = parseInt(hash.substring(0, 4), 16) % adjectives.length
-    const nounIndex = parseInt(hash.substring(4, 8), 16) % nouns.length
-    
-    return `${adjectives[adjIndex]}${nouns[nounIndex]}`
-  }
-  
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [cryptoName, setCryptoName] = useState('');
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+    setErrorMessage('');
+    setIsLoading(true);
+
     try {
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          name,
-          cryptoName: generateCryptoName(`${email}${name}${process.env.NEXT_PUBLIC_CRYPTO_SECRET}`)
-        }),
-      })
-      
+        body: JSON.stringify({ email, name }),
+      });
+
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json()
-        setCryptoName(data.cryptoName)
-        setIsSubmitted(true)
+        setCryptoName(data.cryptoName);
+        setIsSubmitted(true);
+      } else {
+        setErrorMessage(data.error || 'An unexpected error occurred.');
       }
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Error:', error);
+      setErrorMessage('Failed to connect to the server. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-  }
-  
+  };
+
   return (
-    <main className="min-h-screen p-8">
-      <div className="max-w-md mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Crypto Name Generator</h1>
-        
+    <main className="min-h-screen bg-gradient-to-b from-red-100 to-green-100 p-8 flex items-center justify-center">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 transform transition-all duration-500 ease-in-out hover:scale-105">
+        <h1 className="text-4xl font-bold mb-8 text-center text-red-600">Secret Santa Name Generator</h1>
+
         {!isSubmitted ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {errorMessage && (
+              <p className="text-red-500 text-sm bg-red-100 p-3 rounded">{errorMessage}</p>
+            )}
             <div>
-              <label htmlFor="email" className="block mb-2">Email</label>
+              <label htmlFor="email" className="block mb-2 font-medium text-gray-700">
+                Email
+              </label>
               <input
                 type="email"
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full p-2 border rounded"
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="santa@northpole.com"
               />
             </div>
-            
+
             <div>
-              <label htmlFor="name" className="block mb-2">Name</label>
+              <label htmlFor="name" className="block mb-2 font-medium text-gray-700">
+                Name
+              </label>
               <input
                 type="text"
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full p-2 border rounded"
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Kris Kringle"
               />
             </div>
-            
+
             <button
               type="submit"
-              className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+              disabled={isLoading}
+              className={`w-full bg-red-600 text-white p-3 rounded-md font-medium flex items-center justify-center space-x-2 hover:bg-red-700 transition-colors duration-300 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              Generate Crypto Name
+              {isLoading ? (
+                <>
+                  <Snowflake className="animate-spin" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Gift />
+                  <span>Generate Secret Santa Name</span>
+                </>
+              )}
             </button>
           </form>
         ) : (
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Your Asigned Name:</h2>
-            <p className="text-xl bg-gray-100 p-4 rounded">{cryptoName}</p>
+          <div className="text-center space-y-6">
+            <h2 className="text-2xl font-bold mb-4 text-green-600">Your Secret Santa Name:</h2>
+            <p className="text-3xl font-bold bg-green-100 p-6 rounded-lg border-4 border-green-500 inline-block text-green-600">
+              {cryptoName}
+            </p>
+            <p className="text-sm text-green-600">Happy gifting, {name}!</p>
           </div>
         )}
       </div>
     </main>
-  )
+  );
 }
