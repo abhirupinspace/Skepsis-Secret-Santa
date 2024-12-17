@@ -60,14 +60,14 @@ export default function Home() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-md text-black focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="santa@northpole.com"
               />
             </div>
 
             <div>
               <label htmlFor="name" className="block mb-2 font-medium text-gray-700">
-                Name
+                Full Name
               </label>
               <input
                 type="text"
@@ -75,7 +75,7 @@ export default function Home() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full p-3 border text-black border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Kris Kringle"
               />
             </div>
