@@ -22,7 +22,6 @@ export async function POST(request: Request) {
   try {
     const { email, name, password } = await request.json();
 
-    // Validate inputs
     if (!email?.trim() || !name?.trim() || !password?.trim()) {
       return NextResponse.json(
         { error: 'All fields are required' },
@@ -30,11 +29,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Read names data
     const fileContent = await fs.readFile(NAMES_FILE_PATH, 'utf-8');
     const namesData: NameData = JSON.parse(fileContent);
 
-    // Check if user already exists
     const userExists = namesData.assigned.some(entry => 
       entry.user[email.toLowerCase()] === password
     );
@@ -46,7 +43,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Filter out names that match the user's name
+    // Filter out own name for assignment
     const availableNames = namesData.unassigned.filter(entry => {
       const personName = Object.keys(entry)[0];
       return personName.toLowerCase() !== name.toLowerCase();
@@ -65,7 +62,10 @@ export async function POST(request: Request) {
     const personName = Object.keys(selectedEntry)[0];
     const driveLink = selectedEntry[personName];
 
-    // Remove the selected name from unassigned
+    // Get all unassigned names BEFORE removing the selected one
+    const allNames = namesData.unassigned.map(entry => Object.keys(entry)[0]);
+
+    // Now remove the selected name from unassigned
     namesData.unassigned = namesData.unassigned.filter(entry => 
       Object.keys(entry)[0] !== personName
     );
@@ -76,17 +76,11 @@ export async function POST(request: Request) {
       user: { [email.toLowerCase()]: password }
     });
 
-    // Save updated names data
     await fs.writeFile(NAMES_FILE_PATH, JSON.stringify(namesData, null, 2));
 
-    // Get all names for the wheel
-    const allNames = [
-      ...namesData.unassigned.map(entry => Object.keys(entry)[0]),
-      ...namesData.assigned.map(entry => Object.keys(entry.recipient)[0])
-    ];
-
+    // Return ALL names that were available, including the selected one
     return NextResponse.json({
-      names: allNames,
+      names: allNames,  // All names including the one that was selected
       designatedName: personName,
       driveLink: driveLink
     });
