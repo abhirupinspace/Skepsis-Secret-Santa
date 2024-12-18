@@ -1,84 +1,101 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import { createHash } from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
 
-// Connect to MongoDB
-const mongoUri = process.env.MONGODB_URI;
-if (!mongoUri) {
-  throw new Error('MONGODB_URI is not defined in environment variables');
+const NAMES_FILE_PATH = path.join(process.cwd(), 'data', 'names.json');
+
+interface NameEntry {
+  [key: string]: string;
 }
 
-mongoose.connect(mongoUri).catch((err) => console.error('Error connecting to MongoDB:', err));
+interface AssignedEntry {
+  recipient: { [key: string]: string };
+  user: { [key: string]: string };
+}
 
-// Define User Schema and Model
-const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  name: { type: String, required: true, unique: true },
-  cryptoName: { type: String, required: true, unique: true },
-});
+interface NameData {
+  assigned: AssignedEntry[];
+  unassigned: NameEntry[];
+}
 
-const User = mongoose.models.User || mongoose.model('User', userSchema);
-
-// Function to generate a unique crypto name
-const generateCryptoName = (input: string) => {
-  const adjectives = ['Mystic', 'Cosmic', 'Quantum', 'Stellar', 'Crypto', 'Digital', 'Neural', 'Cyber'];
-  const nouns = ['Phoenix', 'Dragon', 'Nexus', 'Matrix', 'Vector', 'Pulse', 'Nova', 'Spark'];
-
-  let cryptoName = '';
-  let uniqueHash = '';
-
-  do {
-    const hash = createHash('sha256')
-      .update(input + Math.random().toString()) // Add randomness for uniqueness
-      .digest('hex')
-      .substring(0, 8);
-
-    const adjIndex = parseInt(hash.substring(0, 4), 16) % adjectives.length;
-    const nounIndex = parseInt(hash.substring(4, 8), 16) % nouns.length;
-
-    uniqueHash = hash;
-    cryptoName = `${adjectives[adjIndex]}${nouns[nounIndex]}`;
-  } while (!cryptoName);
-
-  return { uniqueHash, cryptoName };
-};
-
-// POST Handler
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, name } = body;
+    const { email, name, password } = await request.json();
 
-    // Check if the name is already used
-    const existingUserByName = await User.findOne({ name });
-    if (existingUserByName) {
+    // Validate inputs
+    if (!email?.trim() || !name?.trim() || !password?.trim()) {
       return NextResponse.json(
-        { error: 'NAME IS USED YOU ALREADY HAVE A SECRET NAME' },
+        { error: 'All fields are required' },
         { status: 400 }
       );
     }
 
-    // Generate unique crypto name
-    let { cryptoName } = generateCryptoName(`${email}${name}${process.env.NEXT_PUBLIC_CRYPTO_SECRET}`);
-    let existingUserByCryptoName;
+    // Read names data
+    const fileContent = await fs.readFile(NAMES_FILE_PATH, 'utf-8');
+    const namesData: NameData = JSON.parse(fileContent);
 
-    // Ensure crypto name is unique
-    do {
-      existingUserByCryptoName = await User.findOne({ cryptoName });
-      if (existingUserByCryptoName) {
-        ({ cryptoName } = generateCryptoName(`${email}${name}${process.env.NEXT_PUBLIC_CRYPTO_SECRET}`));
-      }
-    } while (existingUserByCryptoName);
+    // Check if user already exists
+    const userExists = namesData.assigned.some(entry => 
+      entry.user[email.toLowerCase()] === password
+    );
 
-    // Save user data in MongoDB
-    const user = new User({ email, name, cryptoName });
-    await user.save();
+    if (userExists) {
+      return NextResponse.json(
+        { error: 'This email has already been assigned a person' },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({ cryptoName: user.cryptoName });
+    // Filter out names that match the user's name
+    const availableNames = namesData.unassigned.filter(entry => {
+      const personName = Object.keys(entry)[0];
+      return personName.toLowerCase() !== name.toLowerCase();
+    });
+
+    if (availableNames.length === 0) {
+      return NextResponse.json(
+        { error: 'No suitable names available' },
+        { status: 404 }
+      );
+    }
+
+    // Select a random name
+    const randomIndex = Math.floor(Math.random() * availableNames.length);
+    const selectedEntry = availableNames[randomIndex];
+    const personName = Object.keys(selectedEntry)[0];
+    const driveLink = selectedEntry[personName];
+
+    // Remove the selected name from unassigned
+    namesData.unassigned = namesData.unassigned.filter(entry => 
+      Object.keys(entry)[0] !== personName
+    );
+
+    // Add to assigned with user info
+    namesData.assigned.push({
+      recipient: { [personName]: driveLink },
+      user: { [email.toLowerCase()]: password }
+    });
+
+    // Save updated names data
+    await fs.writeFile(NAMES_FILE_PATH, JSON.stringify(namesData, null, 2));
+
+    // Get all names for the wheel
+    const allNames = [
+      ...namesData.unassigned.map(entry => Object.keys(entry)[0]),
+      ...namesData.assigned.map(entry => Object.keys(entry.recipient)[0])
+    ];
+
+    return NextResponse.json({
+      names: allNames,
+      designatedName: personName,
+      driveLink: driveLink
+    });
+
   } catch (error) {
     console.error('Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Failed to create user' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

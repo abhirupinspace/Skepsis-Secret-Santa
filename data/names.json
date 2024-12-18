@@ -1,0 +1,18 @@
+{
+  "assigned": [
+  ],
+  "unassigned": [
+    {
+      "personA": "driveLink1"
+    },
+    {
+      "personB": "driveLink2"
+    },
+    {
+      "personC": "driveLink3"
+    },
+    {
+      "personH": "driveLink8"
+    }
+  ]
+}
